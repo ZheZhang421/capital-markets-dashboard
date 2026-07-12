@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capital Markets — Live Insight Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0d1521; --panel:#141f2e; --panel-2:#1a2738;
+    --line:#26344a; --line-soft:#1f2c3e;
+    --text:#e8edf4; --muted:#8a97aa; --faint:#5d6a7c;
+    --gold:#e0b341; --gold-dim:#a98a3a;
+    --pos:#46b98a; --neg:#e2664f; --blue:#5e9ed6; --teal:#4fb3a6;
+    --radius:13px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--ink);color:var(--text);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding-bottom:64px;
+    background-image:
+      radial-gradient(1100px 480px at 78% -8%, rgba(224,179,65,.07), transparent 60%),
+      radial-gradient(900px 520px at 8% 4%, rgba(79,179,166,.05), transparent 55%);
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+
+  header{padding:40px 0 22px;border-bottom:1px solid var(--line-soft)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.34em;
+    text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:11px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--gold);opacity:.7}
+  h1{font-family:"Archivo",sans-serif;font-weight:800;font-size:clamp(34px,6.2vw,58px);
+    letter-spacing:-.025em;line-height:.98;margin:14px 0 0}
+  h1 .thin{color:var(--muted);font-weight:600}
+  .sub{margin-top:14px;max-width:640px;color:var(--muted);font-size:15px}
+
+  .meta-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:18px}
+  .asof{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--faint);letter-spacing:.02em}
+  .asof b{color:var(--text);font-weight:500}
+  .refresh-btn{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.04em;
+    background:var(--gold);color:#1a1304;border:1px solid var(--gold);font-weight:600;
+    padding:9px 16px;border-radius:8px;cursor:pointer;transition:.16s;display:inline-flex;
+    align-items:center;gap:8px;
+  }
+  .refresh-btn:hover{filter:brightness(1.08)}
+  .refresh-btn:disabled{opacity:.55;cursor:wait}
+  .refresh-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .refresh-btn .spin{display:inline-block;width:11px;height:11px;border:2px solid #1a1304;
+    border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .rstatus{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);min-height:16px}
+  .rstatus.err{color:var(--neg)} .rstatus.ok{color:var(--pos)}
+  .auto-toggle{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
+    display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
+    border:1px solid var(--line);padding:8px 13px;border-radius:8px;transition:.16s}
+  .auto-toggle:hover{border-color:var(--gold-dim)}
+  .auto-toggle input{accent-color:var(--gold);width:14px;height:14px;cursor:pointer;margin:0}
+  .auto-toggle.live{border-color:var(--gold-dim);color:var(--text)}
+  .auto-toggle.live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--pos);
+    box-shadow:0 0 0 0 rgba(70,185,138,.5);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(70,185,138,.45)}70%{box-shadow:0 0 0 6px rgba(70,185,138,0)}100%{box-shadow:0 0 0 0 rgba(70,185,138,0)}}
+  .countdown{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--faint);letter-spacing:.03em;min-width:74px}
+
+  .tape{margin-top:24px;border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,var(--panel),var(--ink));
+    display:grid;grid-template-columns:repeat(5,1fr);overflow:hidden}
+  .tick{padding:16px 18px;border-right:1px solid var(--line-soft);position:relative}
+  .tick:last-child{border-right:none}
+  .tick .lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:6px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--pos);flex-shrink:0}
+  .dot.stale{background:var(--neg)}
+  .tick .val{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:25px;
+    margin-top:7px;letter-spacing:-.01em}
+  .tick .val.flash{animation:fl 1.1s ease}
+  @keyframes fl{0%{color:var(--gold)}100%{color:var(--text)}}
+  .tick .delta{font-family:"IBM Plex Mono",monospace;font-size:12px;margin-top:3px;
+    display:flex;align-items:center;gap:5px}
+  .tick .stamp{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--faint);
+    margin-top:6px;letter-spacing:.04em}
+  .up{color:var(--pos)} .down{color:var(--neg)} .flat{color:var(--muted)}
+
+  .playbook{margin-top:14px;border:1px solid var(--line-soft);border-radius:var(--radius);
+    background:var(--panel);padding:15px 18px;display:flex;gap:14px;align-items:flex-start}
+  .playbook .pin{color:var(--gold);font-family:"IBM Plex Mono",monospace;font-size:12px;
+    letter-spacing:.1em;padding-top:1px;white-space:nowrap}
+  .playbook p{font-size:13.5px;color:var(--muted)}
+  .playbook b{color:var(--text);font-weight:600}
+
+  /* review panel */
+  .review{margin-top:14px;border:1px solid var(--gold-dim);border-radius:var(--radius);
+    background:var(--panel-2);padding:18px 20px;display:none}
+  .review.show{display:block}
+  .review h4{font-family:"Archivo";font-size:15px;margin-bottom:4px}
+  .review .rsub{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+  .rrow{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;
+    padding:10px 0;border-top:1px solid var(--line-soft);font-size:13px}
+  .rrow .rlbl{color:var(--muted)}
+  .rrow .rold{font-family:"IBM Plex Mono";color:var(--faint)}
+  .rrow .rnew{font-family:"IBM Plex Mono";color:var(--gold);font-weight:600}
+  .rrow .rsrc{font-size:10.5px;color:var(--faint);grid-column:1/-1;margin-top:-4px}
+  .review .ract{display:flex;gap:9px;margin-top:16px}
+  .btn-sm{font-family:"IBM Plex Mono";font-size:12px;padding:8px 14px;border-radius:7px;
+    cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);transition:.16s}
+  .btn-sm.primary{background:var(--gold);color:#1a1304;border-color:var(--gold);font-weight:600}
+  .btn-sm:hover{border-color:var(--gold-dim)}
+  .btn-sm:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+  .controls{position:sticky;top:0;z-index:20;margin-top:30px;padding:13px 0;
+    background:rgba(13,21,33,.86);backdrop-filter:blur(9px);
+    border-bottom:1px solid var(--line-soft);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .controls .label{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--faint);margin-right:4px}
+  .filt{font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--panel);color:var(--muted);
+    border:1px solid var(--line);padding:7px 14px;border-radius:7px;cursor:pointer;letter-spacing:.03em;transition:.16s}
+  .filt:hover{border-color:var(--gold-dim);color:var(--text)}
+  .filt.on{background:var(--gold);color:#1a1304;border-color:var(--gold);font-weight:600}
+  .filt:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .nav-jump{margin-left:auto;display:flex;gap:6px}
+  .nav-jump a{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--faint);
+    text-decoration:none;padding:7px 11px;border-radius:7px;transition:.16s;letter-spacing:.04em}
+  .nav-jump a:hover{color:var(--gold);background:var(--panel)}
+
+  section{margin-top:46px;scroll-margin-top:74px}
+  .sec-head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:5px}
+  .sec-num{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--gold);
+    border:1px solid var(--gold-dim);border-radius:6px;padding:3px 9px;letter-spacing:.05em}
+  .sec-head h2{font-family:"Archivo",sans-serif;font-weight:700;font-size:26px;letter-spacing:-.02em}
+  .sec-q{color:var(--muted);font-size:14px;margin:7px 0 22px;max-width:700px}
+  .sec-q .k{color:var(--text);font-weight:600}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}
+  .card{border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    padding:19px 20px 17px;display:flex;flex-direction:column;
+    transition:border-color .18s ease, transform .18s ease}
+  .card:hover{border-color:var(--gold-dim);transform:translateY(-2px)}
+  .card.hide{display:none}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .card h3{font-family:"Archivo",sans-serif;font-weight:700;font-size:18px;letter-spacing:-.01em;line-height:1.15}
+  .pub{font-size:12px;color:var(--faint);margin-top:3px}
+  .chips{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+  .chip{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 8px;border-radius:5px;white-space:nowrap}
+  .chip.free{color:var(--pos);border:1px solid rgba(70,185,138,.4);background:rgba(70,185,138,.08)}
+  .chip.gated{color:var(--gold);border:1px solid rgba(224,179,65,.38);background:rgba(224,179,65,.07)}
+  .chip.gated::before{content:"\26BF  ";font-size:9px}
+  .cadence{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.06em;color:var(--faint);
+    border:1px solid var(--line);padding:3px 8px;border-radius:5px}
+  .desc{font-size:13.5px;color:var(--muted);margin-top:13px;flex-grow:1}
+  .card-foot{margin-top:15px;padding-top:13px;border-top:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .signal{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--text)}
+  .signal .tg{color:var(--faint);font-size:10px;display:block;letter-spacing:.1em;
+    text-transform:uppercase;margin-bottom:1px}
+  .open{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--gold);text-decoration:none;
+    border:1px solid var(--gold-dim);border-radius:7px;padding:6px 12px;transition:.16s;white-space:nowrap}
+  .open:hover{background:var(--gold);color:#1a1304}
+  .open:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+  .access{margin-top:42px;border:1px dashed var(--line);border-radius:var(--radius);
+    background:var(--panel);padding:22px 24px}
+  .access .ak{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--gold)}
+  .access h4{font-family:"Archivo",sans-serif;font-size:17px;margin:8px 0 9px;font-weight:700}
+  .access p{font-size:13.5px;color:var(--muted);max-width:760px}
+  .access .plat{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+  .plat span{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--text);
+    border:1px solid var(--line);border-radius:6px;padding:5px 11px;background:var(--panel-2)}
+
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line-soft);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--faint);line-height:1.7}
+  footer b{color:var(--muted);font-weight:500}
+
+  @media (max-width:840px){
+    .tape{grid-template-columns:repeat(2,1fr)}
+    .tick:nth-child(2){border-right:none}
+    .tick:nth-child(5){grid-column:span 2;border-right:none;border-top:1px solid var(--line-soft)}
+    .grid{grid-template-columns:1fr}.nav-jump{display:none}
+    .rrow{grid-template-columns:1fr auto}
+  }
+  @media (max-width:480px){
+    .tape{grid-template-columns:1fr}
+    .tick{border-right:none;border-bottom:1px solid var(--line-soft)}
+    .playbook{flex-direction:column;gap:7px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Strategic Finance · SaaS</div>
+    <h1>Capital Markets<br><span class="thin">Live Insight Dashboard</span></h1>
+    <p class="sub">A standing map of who publishes what across SaaS valuation, operating benchmarks, and deal activity — a single source-of-truth reference layer, kept current on a periodic manual refresh.</p>
+
+    <div class="meta-row">
+      <span class="asof">DATA AS OF <b id="asofStamp">—</b></span>
+      <span class="asof" style="opacity:.75">· maintained manually — figures verified against published sources on each update</span>
+    </div>
+
+    <div class="tape" id="tape" role="group" aria-label="Market snapshot"></div>
+
+    <div class="playbook">
+      <div class="pin">USE IT →</div>
+      <p>Run a standing stack of three: <b>one operating benchmark</b> (KeyBanc), <b>one public-comp feed</b> (Meritech or SaaS Capital), <b>one activity tracker</b> (SEG or PitchBook). The tape above is the pulse; the cards are the reference layer — both refreshed on a periodic review.</p>
+    </div>
+  </header>
+
+  <div class="controls">
+    <span class="label">Filter</span>
+    <button class="filt on" data-f="all">All</button>
+    <button class="filt" data-f="free">Free</button>
+    <button class="filt" data-f="gated">Gated</button>
+    <nav class="nav-jump">
+      <a href="#valuation">01 Valuation</a>
+      <a href="#benchmarks">02 Benchmarks</a>
+      <a href="#activity">03 Activity</a>
+      <a href="#canada">04 Canada</a>
+    </nav>
+  </div>
+
+  <div id="sections"></div>
+
+  <div class="access">
+    <div class="ak">Access · unlocking gated research</div>
+    <h4>Gated bank research rides on platforms you may already license</h4>
+    <p>Bulge-bracket and Canadian-bank SaaS research (Morgan Stanley, Goldman, JPMorgan, BMO CM, National Bank, TD Securities) is distributed to clients — but most of it is reachable through a research aggregator or terminal. At a PE-backed company you likely already have one.</p>
+    <div class="plat">
+      <span>Bloomberg Terminal</span><span>S&amp;P Capital IQ</span><span>PitchBook</span>
+      <span>AlphaSense</span><span>Tegus</span>
+    </div>
+  </div>
+
+  <footer>
+    <b>How updates work.</b> This is a manually-maintained reference. Each metric carries its own as-of date; figures are refreshed periodically by searching for the latest published value from each source and updating the DATA block at the top of the source.<br>
+    Proprietary index levels (SaaS Capital, BVP) and report figures have no public feed, and several sources publish only quarterly or annually — so an older as-of date usually means "latest available," not "stale."<br>
+    Green dot = current · red dot = past its refresh window. Built as a personal reference map, not investment advice.
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================
+   SINGLE SOURCE OF TRUTH — edit values here for a manual refresh.
+   Each tape metric carries an as-of date, a refresh window (months),
+   and a search hint used by the live refresh.
+   ============================================================ */
+const DATA = {
+  asOf: "2026-07-12",
+  tape: [
+    { id:"scindex", label:"SaaS Capital · median", value:"~3.2×", delta:"decade-plus lows · early-2026 AI re-rating", dir:"down",
+      asOf:"2026-06", window:1, query:"SaaS Capital Index current median EV/revenue multiple 2026" },
+    { id:"pubavg", label:"Public EV/Rev · average", value:"~5.3×", delta:"avg vs ~3.0× median · AI-native skew", dir:"flat",
+      asOf:"2026-07", window:1, query:"average public SaaS EV/revenue multiple 2026 mean vs median" },
+    { id:"madeals", label:"SaaS M&A · TTM deals", value:"2,734", delta:"+24% YoY · record pace", dir:"up",
+      asOf:"2026-03", window:3, query:"Software Equity Group SaaS M&A trailing twelve month transaction count latest 2026" },
+    { id:"ipos", label:"US IPOs · H1 proceeds", value:"~$115B", delta:"H1 record · ~$40B ex-SpaceX", dir:"up",
+      asOf:"2026-06", window:1, query:"US IPO proceeds first half 2026 total ex mega deals" },
+    { id:"rule40", label:"Rule of 40 · median", value:"~35", delta:"KeyBanc FY24 · efficiency era", dir:"up",
+      asOf:"2025-11", window:12, query:"KeyBanc SaaS survey median Rule of 40 latest" }
+  ],
+  sections: [
+    { num:"01", id:"valuation", title:"Valuation & Multiples",
+      q:'Answers <span class="k">"where would a company like this trade or transact?"</span> — public comps run hot and dispersed; private M&A multiples are the truer floor. Anchor to <span class="k">vertical</span> comps, not the index blend.',
+      cards:[
+        { name:"SaaS Capital Index", pub:"SaaS Capital", access:"free", cadence:"MONTHLY",
+          desc:"The reference benchmark for public B2B SaaS revenue multiples — an equal-weighted median across ~100 pure-play names. Use it as the market \"level\" before applying company-specific premiums. Sits near ~3.2× as of mid-2026 — decade-plus lows, per SaaS Capital — after a sharp early-2026 re-rating on AI-disruption concerns; the median had been range-bound from late 2022 through late 2025 before this decline.",
+          sigLabel:"Jun 2026", sigValue:"~3.2× median", url:"https://www.saas-capital.com/" },
+        { name:"Meritech Public Comps", pub:"Meritech Capital", access:"free", cadence:"LIVE",
+          desc:"Continuously updated public-comp tables — EV/revenue, growth-adjusted multiples, and operating metrics for every major public SaaS name. The cleanest way to pull a comp set without a terminal. Pair with a private-multiple source, since public comps overstate where private assets clear.",
+          sigLabel:"Best for", sigValue:"Public comp set", url:"https://www.meritechcapital.com/benchmarking/comps-table" },
+        { name:"BVP Cloud Index / State of the Cloud", pub:"Bessemer Venture Partners", access:"free", cadence:"LIVE + ANNUAL",
+          desc:"Bessemer's cloud index runs hotter than the broad market because mega-caps like Palantir and Snowflake skew the cap-weighted average toward ~8×. The annual State of the Cloud and the Cloud 100 frame the macro narrative and surface emerging-category theses.",
+          sigLabel:"Current", sigValue:"~8× (cap-wtd)", url:"https://www.bvp.com/atlas/state-of-the-cloud" },
+        { name:"SaaS Valuation Multiples", pub:"Aventis Advisors", access:"free", cadence:"ANNUAL",
+          desc:"Long-run private SaaS M&A multiples drawn from 1,000+ disclosed deals since 2015 — the most useful free read on where private companies actually transact versus headline public numbers. Long-run median sits around 4.5× EV/revenue, with the top quartile above 8×.",
+          sigLabel:"Long-run median", sigValue:"~4.5× EV/Rev", url:"https://aventis-advisors.com/saas-valuation-multiples/" },
+        { name:"Bulge-Bracket Comp Sheets", pub:"Morgan Stanley · Goldman · JPMorgan", access:"gated", cadence:"ONGOING",
+          desc:"Sector equity research with proprietary comp sets, NTM estimates, and thematic notes. Higher rigor and forward estimates than free aggregators, but client-only. Reach via a platform login (see Access) or a banking relationship.",
+          sigLabel:"Access", sigValue:"Client research", url:"https://www.alpha-sense.com/" }
+      ]},
+    { num:"02", id:"benchmarks", title:"Operating Benchmarks",
+      q:'Answers <span class="k">"how do our KPIs stack up?"</span> — NRR/GRR, CAC payback, magic number, Rule of 40. Calibration, not targets: samples are self-selected and lag ~a year.',
+      cards:[
+        { name:"Private Company SaaS Survey", pub:"KeyBanc Capital Markets × Sapphire Ventures", access:"free", cadence:"ANNUAL · NOV",
+          desc:"The benchmark operators measure themselves against — retention, CAC payback, magic number, and Rule of 40 distributions across private SaaS. The 16th annual edition landed Nov 2025 on FY2024 data. The one bank-published report that's openly downloadable; treat it as calibration given the modest, self-selected sample.",
+          sigLabel:"Rule of 40 median", sigValue:"~35", url:"https://sapphireventures.com/blog/2025-saas-survey/" },
+        { name:"SaaS Benchmarks Report", pub:"High Alpha", access:"free", cadence:"ANNUAL",
+          desc:"Operator-focused benchmarks across 800+ companies — strong on GTM efficiency, pricing models, and AI-native growth patterns. A larger, earlier-stage complement to KeyBanc, useful for seeing where usage-based pricing and AI-native cohorts are pulling the medians.",
+          sigLabel:"Signal", sigValue:"AI-native ~2× growth", url:"https://www.highalpha.com/saas-benchmarks" },
+        { name:"SaaS Retention & Growth Benchmarks", pub:"ChartMogul", access:"free", cadence:"PERIODIC",
+          desc:"Retention and growth benchmarks built from live subscription data across thousands of businesses. The most granular free read on NRR and churn segmented by ARR band — handy when you need to defend a retention assumption with outside data.",
+          sigLabel:"Best for", sigValue:"NRR / churn by band", url:"https://chartmogul.com/reports/" },
+        { name:"SEG SaaS Index", pub:"Software Equity Group", access:"free", cadence:"QUARTERLY",
+          desc:"A 100+ name public SaaS index reporting margins, growth, and valuation distributions each quarter. Median EBITDA margins stepped up to ~9% in 2025 as public SaaS hit record scale — a useful read on where the profitability bar now sits.",
+          sigLabel:"2025 EBITDA margin", sigValue:"~9% median", url:"https://softwareequity.com/research/quarterly-saas-report" }
+      ]},
+    { num:"03", id:"activity", title:"Capital-Markets Activity",
+      q:'Answers <span class="k">"is the window open, and which lane?"</span> — M&A is wide open and PE-take-private-led; the IPO door is narrow and tilted to AI infra and fintech, not horizontal SaaS.',
+      cards:[
+        { name:"Annual SaaS Report", pub:"Software Equity Group", access:"free", cadence:"ANNUAL · FEB",
+          desc:"The annual review of SaaS M&A volume, multiples, and buyer behavior, plus the SEG SaaS Index. 2025 set a record at 2,698 transactions, up 28% YoY, with AI referenced in roughly 72% of deals — the clearest signal that AI positioning now moves multiples.",
+          sigLabel:"2025 deals", sigValue:"2,698 · +28%", url:"https://softwareequity.com/research/annual-saas-report" },
+        { name:"Quarterly SaaS M&A Report", pub:"Software Equity Group", access:"free", cadence:"QUARTERLY",
+          desc:"The quarterly companion — deal counts, EV multiples, and public-market performance refreshed each quarter. Q1 2026 ran 659 transactions; trailing-twelve-month volume reached ~2,734, with SaaS still ~60% of all software M&A.",
+          sigLabel:"Q1 2026", sigValue:"659 deals", url:"https://softwareequity.com/research/quarterly-saas-report" },
+        { name:"Enterprise SaaS M&A Review", pub:"PitchBook", access:"gated", cadence:"QUARTERLY",
+          desc:"Institutional read on enterprise SaaS deal value, subsegment mix, and the PE-vs-strategic split. Note headline value can be distorted by a single mega-deal — read deal count alongside value. Some notes are public; full data needs a PitchBook seat.",
+          sigLabel:"Q1 2026 value", sigValue:"$292.7B*", url:"https://pitchbook.com/news/reports/q1-2026-enterprise-saas-m-a-review" },
+        { name:"US Deals Outlook", pub:"PwC", access:"free", cadence:"SEMI-ANNUAL",
+          desc:"Big-four view of the IPO and M&A windows. H1 2026 was the strongest first half on record — ~$115B raised (SpaceX ~$75B primary; ~$40B ex-mega-deals, still ~3× the prior year). But issuance concentrates in AI infrastructure, space/defense, and biotech, with near-zero VC-backed SaaS unicorn filings. Useful framing for exit timing.",
+          sigLabel:"IPOs · H1'26", sigValue:"~$115B record", url:"https://www.pwc.com/us/en/services/consulting/deals/outlook.html" }
+      ]},
+    { num:"04", id:"canada", title:"Canada",
+      q:'No free equivalent of the KeyBanc survey exists here. These desks matter most if a <span class="k">Canadian listing or exit</span> is in view — relevant given a Canadian HQ. Access is via a banker, not a download.',
+      cards:[
+        { name:"Technology Coverage", pub:"RBC Capital Markets", access:"gated", cadence:"ONGOING",
+          desc:"Dedicated technology investment-banking and equity-research coverage, including Canadian-listed software. The desk that would run a TSX-comp readout or sponsor an exit process. Output is client-only; the public site shows thematic teasers, not the research.",
+          sigLabel:"Access", sigValue:"Client research", url:"https://www.rbccm.com/en/expertise/global-investment-banking/industry-coverage/technology" },
+        { name:"Technology Research", pub:"Canaccord Genuity", access:"gated", cadence:"ONGOING",
+          desc:"Historically Canada's strongest tech-research franchise, with deep coverage of TSX-listed software and growth names. The desk to know for a Canadian capital-markets angle. Gated institutional research; reach via the firm or a platform.",
+          sigLabel:"Also watch", sigValue:"BMO · NBF · TD", url:"https://www.canaccordgenuity.com/capital-markets/" }
+      ]}
+  ]
+};
+
+/* ---------- render ---------- */
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtStamp(iso){ // "2026-06" or "2026-06-27"
+  const p=iso.split("-"); const y=p[0], m=parseInt(p[1],10);
+  return (p[2]? p[2]+" ":"")+MONTHS[m-1]+" "+y;
+}
+function monthsSince(iso){
+  const p=iso.split("-"); const d=new Date(p[0], (parseInt(p[1],10)-1), p[2]?parseInt(p[2],10):15);
+  const now=new Date();
+  return (now.getFullYear()-d.getFullYear())*12 + (now.getMonth()-d.getMonth());
+}
+function dirClass(d){ return d==="up"?"up":d==="down"?"down":"flat"; }
+function dirArrow(d){ return d==="up"?"▲":d==="down"?"▼":"■"; }
+
+function renderTape(){
+  const t=document.getElementById("tape");
+  t.innerHTML = DATA.tape.map(m=>{
+    const stale = monthsSince(m.asOf) > m.window;
+    return `<div class="tick">
+      <div class="lbl"><span class="dot ${stale?'stale':''}" title="${stale?'Past refresh window':'Current'}"></span>${m.label}</div>
+      <div class="val" id="val-${m.id}">${m.value}</div>
+      <div class="delta ${dirClass(m.dir)}"><span class="arrow">${dirArrow(m.dir)}</span> ${m.delta}</div>
+      <div class="stamp">${fmtStamp(m.asOf)}</div>
+    </div>`;
+  }).join("");
+}
+function renderSections(){
+  document.getElementById("sections").innerHTML = DATA.sections.map(s=>`
+    <section id="${s.id}">
+      <div class="sec-head"><span class="sec-num">${s.num}</span><h2>${s.title}</h2></div>
+      <p class="sec-q">${s.q}</p>
+      <div class="grid">
+        ${s.cards.map(c=>`
+          <div class="card" data-access="${c.access}">
+            <div class="card-top">
+              <div><h3>${c.name}</h3><div class="pub">${c.pub}</div></div>
+              <div class="chips">
+                <span class="chip ${c.access}">${c.access==='free'?'Free':'Gated'}</span>
+                <span class="cadence">${c.cadence}</span>
+              </div>
+            </div>
+            <p class="desc">${c.desc}</p>
+            <div class="card-foot">
+              <div class="signal"><span class="tg">${c.sigLabel}</span>${c.sigValue}</div>
+              <a class="open" href="${c.url}" target="_blank" rel="noopener">Open ↗</a>
+            </div>
+          </div>`).join("")}
+      </div>
+    </section>`).join("");
+}
+function renderStamp(){ document.getElementById("asofStamp").textContent = fmtStamp(DATA.asOf).toUpperCase(); }
+function renderAll(){ renderStamp(); renderTape(); renderSections(); }
+renderAll();
+
+/* ---------- filter ---------- */
+document.querySelectorAll('.filt').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filt').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    const f=btn.dataset.f;
+    document.querySelectorAll('.card').forEach(c=>{
+      const show=(f==='all')||(c.dataset.access===f);
+      c.classList.toggle('hide',!show);
+    });
+  });
+});
+
+/* Figures are maintained manually in the DATA block above — no live refresh. */
+</script>
+</body>
+</html>
